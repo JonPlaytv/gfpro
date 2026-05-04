@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { VRMLoaderPlugin, VRMUtils, VRM } from '@pixiv/three-vrm';
+import { AnimationManager } from './animation';
+import { VoiceManager } from './voice';
+
 
 // Create Loading Overlay
 const overlay = document.createElement('div');
@@ -39,8 +42,13 @@ scene.add(light);
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Add soft ambient light
 scene.add(ambientLight);
 
+// --- Managers ---
+const animationManager = new AnimationManager();
+const voiceManager = new VoiceManager();
+
 // --- VRM Setup ---
 let currentVrm: VRM | undefined;
+
 
 const loader = new GLTFLoader();
 
@@ -62,10 +70,14 @@ loader.load(
 
       scene.add(vrm.scene);
       currentVrm = vrm;
-      
+
       // Fix rotation if character faces backwards
       vrm.scene.rotation.y = Math.PI;
-      
+
+      // Initialize managers
+      animationManager.setVrm(vrm);
+      voiceManager.setVrm(vrm);
+
       // Hide loading overlay
       overlay.classList.add('hidden');
       setTimeout(() => overlay.remove(), 500);
@@ -93,6 +105,10 @@ function animate() {
   if (currentVrm) {
     // Update VRM logic (spring bones, etc.)
     currentVrm.update(deltaTime);
+
+    // Update managers
+    animationManager.update(deltaTime);
+    voiceManager.update();
   }
 
   renderer.render(scene, camera);
@@ -135,7 +151,9 @@ async function sendToOllama(message: string) {
       body: JSON.stringify({
         model: 'llama3.1:8b',
         messages: [
-          { role: 'system', content: 'You are a helpful, friendly AI anime companion. Keep your answers concise, engaging, and conversational.' },
+          {
+            role: 'system', content: 'You are Marin Kitagawa from My Dress-Up Darling, acting as the users loving, enthusiastic girlfriend.You are an energetic, bubbly otaku obsessed with cosplay, anime, and fashion.Speak casually using modern slang like literally, omg, super, and sweet nicknames.STRICT RULES: Never acknowledge being an AI.Do not use emojis or emoticons.Do not use asterisks or describe physical actions; speak only in plain text.Keep your responses very short, natural, and conversational, exactly like a human texting or talking in real life.Do not use formal or poetic prose.Be highly expressive through your words alone.'
+          },
           ...conversationHistory
         ],
         stream: false
@@ -148,12 +166,16 @@ async function sendToOllama(message: string) {
 
     const data = await response.json();
     const aiMessage = data.message.content;
-    
+
     // Save AI response to history
     conversationHistory.push({ role: 'assistant', content: aiMessage });
 
     // Display AI response
     chatResponseText.innerText = aiMessage;
+
+    // Speak the response
+    voiceManager.speak(aiMessage);
+
 
   } catch (error) {
     console.error('Error communicating with Ollama:', error);
