@@ -135,7 +135,7 @@ let conversationHistory: { role: string, content: string }[] = [];
 async function sendToOllama(message: string) {
   // Update UI to show loading state
   chatResponse.classList.remove('hidden');
-  chatResponseText.innerHTML = '<span style="color: #94a3b8; font-style: italic;">AI Partner is thinking...</span>';
+  chatResponseText.innerHTML = '';
   chatInput.value = '';
   chatInput.disabled = true;
   chatSubmit.disabled = true;

@@ -42,9 +42,28 @@ export class VoiceManager {
       this.resetMouth();
     };
 
-    // Try to find a good female voice if available
+    // Try to find a good English female voice
     const voices = this.synth.getVoices();
-    const preferredVoice = voices.find(v => v.name.includes('Google') || v.name.includes('Female') || v.name.includes('Natural'));
+    const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+    
+    let preferredVoice = englishVoices.find(v => v.name.includes('Natural') && v.name.includes('Female'));
+    
+    if (!preferredVoice) {
+      preferredVoice = englishVoices.find(v => v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Sonia') || v.name.includes('Ava'));
+    }
+    
+    if (!preferredVoice) {
+       preferredVoice = englishVoices.find(v => v.name.includes('Google US English'));
+    }
+
+    if (!preferredVoice) {
+      preferredVoice = englishVoices.find(v => v.name.includes('Female') || v.name.includes('Woman'));
+    }
+    
+    if (!preferredVoice && englishVoices.length > 0) {
+      preferredVoice = englishVoices[0];
+    }
+
     if (preferredVoice) {
       utterance.voice = preferredVoice;
     }
