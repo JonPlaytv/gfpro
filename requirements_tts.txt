@@ -1,0 +1,8 @@
+f5-tts
+fastapi
+uvicorn
+python-multipart
+pydantic
+numpy
+huggingface-hub
+

@@ -2,78 +2,76 @@ import { VRM } from '@pixiv/three-vrm';
 
 export class VoiceManager {
   private currentVrm: VRM | null = null;
-  private synth: SpeechSynthesis;
   private isSpeaking: boolean = false;
+  private audioContext: AudioContext | null = null;
+  private audioSource: AudioBufferSourceNode | null = null;
 
   constructor() {
-    this.synth = window.speechSynthesis;
-    // Pre-load voices
-    this.synth.getVoices();
-    this.synth.onvoiceschanged = () => {
-      console.log('VoiceManager: Voices loaded', this.synth.getVoices().length);
-    };
+    this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
-
 
   public setVrm(vrm: VRM) {
     this.currentVrm = vrm;
   }
 
-  public speak(text: string) {
-    console.log('VoiceManager: Speaking...', text);
+  public async speak(text: string) {
+    console.log('VoiceManager: Speaking with F5-TTS...', text);
     if (this.isSpeaking) {
-      this.synth.cancel();
+      this.stop();
     }
 
+    try {
+      const response = await fetch('http://localhost:8000/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ gen_text: text }),
+      });
 
-    const utterance = new SpeechSynthesisUtterance(text);
+      if (!response.ok) {
+        throw new Error('F5-TTS server error');
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.audioContext!.decodeAudioData(arrayBuffer);
+
+      this.playAudio(audioBuffer);
+    } catch (error) {
+      console.error('Error with F5-TTS:', error);
+    }
+  }
+
+  private playAudio(buffer: AudioBuffer) {
+    if (this.audioSource) {
+      this.audioSource.stop();
+    }
+
+    this.audioSource = this.audioContext!.createBufferSource();
+    this.audioSource.buffer = buffer;
+    this.audioSource.connect(this.audioContext!.destination);
     
-    utterance.onstart = () => {
-      this.isSpeaking = true;
-    };
-
-    utterance.onend = () => {
+    this.audioSource.onended = () => {
       this.isSpeaking = false;
       this.resetMouth();
     };
 
-    utterance.onerror = () => {
-      this.isSpeaking = false;
-      this.resetMouth();
-    };
+    this.isSpeaking = true;
+    this.audioSource.start(0);
+  }
 
-    // Try to find a good English female voice
-    const voices = this.synth.getVoices();
-    const englishVoices = voices.filter(v => v.lang.startsWith('en'));
-    
-    let preferredVoice = englishVoices.find(v => v.name.includes('Natural') && v.name.includes('Female'));
-    
-    if (!preferredVoice) {
-      preferredVoice = englishVoices.find(v => v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Sonia') || v.name.includes('Ava'));
+  public stop() {
+    if (this.audioSource) {
+      this.audioSource.stop();
+      this.audioSource = null;
     }
-    
-    if (!preferredVoice) {
-       preferredVoice = englishVoices.find(v => v.name.includes('Google US English'));
-    }
-
-    if (!preferredVoice) {
-      preferredVoice = englishVoices.find(v => v.name.includes('Female') || v.name.includes('Woman'));
-    }
-    
-    if (!preferredVoice && englishVoices.length > 0) {
-      preferredVoice = englishVoices[0];
-    }
-
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
-
-    this.synth.speak(utterance);
+    this.isSpeaking = false;
+    this.resetMouth();
   }
 
   public update() {
     if (this.isSpeaking && this.currentVrm && this.currentVrm.expressionManager) {
-      // Procedural Lip Sync (simple mouth opening/closing)
+      // Procedural Lip Sync while audio is playing
       const value = Math.abs(Math.sin(performance.now() * 0.015));
       this.currentVrm.expressionManager.setValue('aa', value);
     }
@@ -82,6 +80,33 @@ export class VoiceManager {
   private resetMouth() {
     if (this.currentVrm && this.currentVrm.expressionManager) {
       this.currentVrm.expressionManager.setValue('aa', 0);
+    }
+  }
+
+  public async setVoice(refAudioB64: string, refText: string) {
+    try {
+      const response = await fetch('http://localhost:8000/set_voice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref_audio_b64: refAudioB64, ref_text: refText }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error setting voice:', error);
+      return false;
+    }
+  }
+
+  public async checkVoice() {
+    try {
+      const response = await fetch('http://localhost:8000/has_voice');
+      const data = await response.json();
+      return data.exists;
+    } catch (error) {
+      console.error('Error checking voice:', error);
+      return false;
     }
   }
 }

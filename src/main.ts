@@ -205,3 +205,117 @@ chatInput.addEventListener('keypress', (e) => {
     }
   }
 });
+
+// --- Voice Setup Logic ---
+const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
+const voiceModal = document.getElementById('voice-setup-modal') as HTMLDivElement;
+const recordBtn = document.getElementById('record-btn') as HTMLButtonElement;
+const stopRecordBtn = document.getElementById('stop-record-btn') as HTMLButtonElement;
+const audioUpload = document.getElementById('audio-upload') as HTMLInputElement;
+const uploadStatus = document.getElementById('upload-status') as HTMLSpanElement;
+const saveVoiceBtn = document.getElementById('save-voice-btn') as HTMLButtonElement;
+const refTextInput = document.getElementById('ref-text') as HTMLTextAreaElement;
+const recordingStatus = document.getElementById('recording-status') as HTMLSpanElement;
+
+let mediaRecorder: MediaRecorder | null = null;
+let audioChunks: Blob[] = [];
+let selectedAudioBase64: string | null = null;
+
+async function checkVoiceSetup() {
+  const hasVoice = await voiceManager.checkVoice();
+  if (!hasVoice) {
+    voiceModal.classList.remove('hidden');
+  }
+}
+
+// Toggle Modal via Settings Button
+settingsBtn?.addEventListener('click', () => {
+  voiceModal.classList.toggle('hidden');
+});
+
+// Close modal when clicking outside (optional but nice)
+voiceModal?.addEventListener('click', (e) => {
+  if (e.target === voiceModal) {
+    voiceModal.classList.add('hidden');
+  }
+});
+
+// Option 1: Recording
+recordBtn?.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    selectedAudioBase64 = null; // Clear any previous upload
+
+    mediaRecorder.ondataavailable = (event) => {
+      audioChunks.push(event.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      recordingStatus.innerText = 'Recording ready!';
+      recordBtn.classList.remove('hidden');
+      stopRecordBtn.classList.add('hidden');
+      
+      const blob = new Blob(audioChunks, { type: 'audio/wav' });
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = () => {
+        selectedAudioBase64 = (reader.result as string).split(',')[1];
+        uploadStatus.innerText = ''; // Clear upload status
+      };
+    };
+
+    mediaRecorder.start();
+    recordingStatus.innerText = 'Recording...';
+    recordBtn.classList.add('hidden');
+    stopRecordBtn.classList.remove('hidden');
+  } catch (err) {
+    console.error('Error starting recording:', err);
+    alert('Could not access microphone.');
+  }
+});
+
+stopRecordBtn?.addEventListener('click', () => {
+  mediaRecorder?.stop();
+});
+
+// Option 2: Upload
+audioUpload?.addEventListener('change', (e) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      selectedAudioBase64 = (reader.result as string).split(',')[1];
+      uploadStatus.innerText = `File selected: ${file.name}`;
+      recordingStatus.innerText = ''; // Clear recording status
+      audioChunks = []; // Clear recording chunks
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+// Save Logic
+saveVoiceBtn?.addEventListener('click', async () => {
+  const transcript = refTextInput.value.trim();
+  
+  if (selectedAudioBase64 && transcript) {
+    saveVoiceBtn.disabled = true;
+    saveVoiceBtn.innerText = 'Saving...';
+    const success = await voiceManager.setVoice(selectedAudioBase64, transcript);
+    if (success) {
+      voiceModal.classList.add('hidden');
+      alert('Voice saved successfully!');
+    } else {
+      alert('Failed to save voice. Is the F5-TTS server running?');
+    }
+    saveVoiceBtn.disabled = false;
+    saveVoiceBtn.innerText = 'Save Voice';
+  } else {
+    alert('Please provide an audio sample (record or upload) and enter the transcript.');
+  }
+});
+
+// Check voice on load removed to prevent auto-opening
+// checkVoiceSetup();
+
