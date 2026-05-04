@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { VRMLoaderPlugin, VRMUtils, VRM } from '@pixiv/three-vrm';
 import { AnimationManager } from './animation';
 import { VoiceManager } from './voice';
+import { recordingBlobToWavBase64 } from './audioExport';
 
 
 // Create Loading Overlay
@@ -218,19 +219,29 @@ const refTextInput = document.getElementById('ref-text') as HTMLTextAreaElement;
 const recordingStatus = document.getElementById('recording-status') as HTMLSpanElement;
 
 let mediaRecorder: MediaRecorder | null = null;
+let recordStream: MediaStream | null = null;
 let audioChunks: Blob[] = [];
 let selectedAudioBase64: string | null = null;
+let isConvertingRecording = false;
 
-async function checkVoiceSetup() {
-  const hasVoice = await voiceManager.checkVoice();
-  if (!hasVoice) {
-    voiceModal.classList.remove('hidden');
-  }
+function updateSaveVoiceButtonState(): void {
+  if (!saveVoiceBtn) return;
+  const hasText = refTextInput.value.trim().length > 0;
+  const hasAudio = selectedAudioBase64 !== null;
+  saveVoiceBtn.disabled = !(hasText && hasAudio && !isConvertingRecording);
 }
+
+// Clicks inside the card must not hit the backdrop close handler by mistake
+document.querySelector('.modal-content')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+});
 
 // Toggle Modal via Settings Button
 settingsBtn?.addEventListener('click', () => {
   voiceModal.classList.toggle('hidden');
+  if (!voiceModal.classList.contains('hidden')) {
+    updateSaveVoiceButtonState();
+  }
 });
 
 // Close modal when clicking outside (optional but nice)
@@ -240,30 +251,48 @@ voiceModal?.addEventListener('click', (e) => {
   }
 });
 
+refTextInput?.addEventListener('input', () => {
+  updateSaveVoiceButtonState();
+});
+
 // Option 1: Recording
 recordBtn?.addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordStream = stream;
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
     selectedAudioBase64 = null; // Clear any previous upload
+    updateSaveVoiceButtonState();
 
     mediaRecorder.ondataavailable = (event) => {
       audioChunks.push(event.data);
     };
 
-    mediaRecorder.onstop = () => {
-      recordingStatus.innerText = 'Recording ready!';
+    mediaRecorder.onstop = async () => {
+      isConvertingRecording = true;
+      updateSaveVoiceButtonState();
+      recordingStatus.innerText = 'Converting to WAV...';
       recordBtn.classList.remove('hidden');
       stopRecordBtn.classList.add('hidden');
-      
-      const blob = new Blob(audioChunks, { type: 'audio/wav' });
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onloadend = () => {
-        selectedAudioBase64 = (reader.result as string).split(',')[1];
-        uploadStatus.innerText = ''; // Clear upload status
-      };
+
+      try {
+        const mime = mediaRecorder?.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunks, { type: mime });
+        selectedAudioBase64 = await recordingBlobToWavBase64(blob);
+        recordingStatus.innerText = 'Recording ready! You can save now.';
+        uploadStatus.innerText = '';
+      } catch (err) {
+        console.error('Failed to convert recording:', err);
+        selectedAudioBase64 = null;
+        recordingStatus.innerText = '';
+        alert('Could not convert the recording to WAV. Try a shorter clip or upload a .wav file.');
+      } finally {
+        isConvertingRecording = false;
+        recordStream?.getTracks().forEach((t) => t.stop());
+        recordStream = null;
+        updateSaveVoiceButtonState();
+      }
     };
 
     mediaRecorder.start();
@@ -290,6 +319,7 @@ audioUpload?.addEventListener('change', (e) => {
       uploadStatus.innerText = `File selected: ${file.name}`;
       recordingStatus.innerText = ''; // Clear recording status
       audioChunks = []; // Clear recording chunks
+      updateSaveVoiceButtonState();
     };
     reader.readAsDataURL(file);
   }
@@ -298,21 +328,32 @@ audioUpload?.addEventListener('change', (e) => {
 // Save Logic
 saveVoiceBtn?.addEventListener('click', async () => {
   const transcript = refTextInput.value.trim();
-  
-  if (selectedAudioBase64 && transcript) {
-    saveVoiceBtn.disabled = true;
-    saveVoiceBtn.innerText = 'Saving...';
-    const success = await voiceManager.setVoice(selectedAudioBase64, transcript);
-    if (success) {
-      voiceModal.classList.add('hidden');
-      alert('Voice saved successfully!');
-    } else {
-      alert('Failed to save voice. Is the F5-TTS server running?');
-    }
-    saveVoiceBtn.disabled = false;
-    saveVoiceBtn.innerText = 'Save Voice';
+
+  if (isConvertingRecording) {
+    alert('Please wait until conversion finishes (status shows Recording ready).');
+    return;
+  }
+  if (!selectedAudioBase64) {
+    alert('Please record audio or upload a file first.');
+    return;
+  }
+  if (!transcript) {
+    alert('Please enter the exact transcript of your clip.');
+    return;
+  }
+
+  saveVoiceBtn.disabled = true;
+  saveVoiceBtn.innerText = 'Saving...';
+  const success = await voiceManager.setVoice(selectedAudioBase64, transcript);
+  saveVoiceBtn.innerText = 'Save Voice';
+  updateSaveVoiceButtonState();
+
+  if (success) {
+    const ok = await voiceManager.checkVoice();
+    voiceModal.classList.add('hidden');
+    alert(ok ? 'Voice saved on the server. You can chat now.' : 'Save reported OK but server has no voice files yet.');
   } else {
-    alert('Please provide an audio sample (record or upload) and enter the transcript.');
+    alert('Failed to save voice. Start f5_tts_server.py on http://localhost:8000 and try again.');
   }
 });
 

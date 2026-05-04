@@ -253,6 +253,24 @@ body, html {
   font-size: 0.95rem;
 }
 
+.modal-content .voice-hint {
+  font-size: 0.88rem;
+  color: #fbbf24;
+  line-height: 1.45;
+}
+
+.modal-content .voice-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.btn.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .voice-options {
   display: flex;
   flex-direction: column;

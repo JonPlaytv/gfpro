@@ -92,6 +92,10 @@ export class VoiceManager {
         },
         body: JSON.stringify({ ref_audio_b64: refAudioB64, ref_text: refText }),
       });
+      if (!response.ok) {
+        const detail = await response.text();
+        console.error('set_voice failed:', response.status, detail);
+      }
       return response.ok;
     } catch (error) {
       console.error('Error setting voice:', error);

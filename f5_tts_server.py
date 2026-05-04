@@ -16,7 +16,42 @@ from contextlib import asynccontextmanager
 # Configuration
 # Default F5-TTS Base Model Config
 model_cfg = dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+def _pick_device() -> str:
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+DEVICE = _pick_device()
+
+# Lower = faster synthesis, higher = better quality (F5 default in library is 32).
+def _infer_int(name: str, default: int, lo: int, hi: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        v = int(raw)
+    except ValueError:
+        return default
+    return max(lo, min(hi, v))
+
+
+def _infer_float(name: str, default: float, lo: float, hi: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        v = float(raw)
+    except ValueError:
+        return default
+    return max(lo, min(hi, v))
+
+
+NFE_STEP = _infer_int("F5_NFE_STEP", 24, 8, 64)
+CFG_STRENGTH = _infer_float("F5_CFG_STRENGTH", 2.0, 0.5, 4.0)
+
 REF_AUDIO_PATH = "ref_audio.wav"
 REF_TEXT_PATH = "ref_text.txt"
 
@@ -27,7 +62,15 @@ vocoder = None
 def init_model():
     global ema_model, vocoder
     if ema_model is None:
-        print(f"Loading F5-TTS model on {DEVICE}...")
+        if DEVICE == "cuda":
+            print(
+                f"Loading F5-TTS model on {DEVICE} ({torch.cuda.get_device_name(0)})..."
+            )
+        else:
+            print(
+                f"Loading F5-TTS model on {DEVICE} (install PyTorch with CUDA from "
+                "https://pytorch.org/get-started/locally/ to use GPU)..."
+            )
         try:
             # Download checkpoint from HuggingFace
             ckpt_path = hf_hub_download(repo_id="SWivid/F5-TTS", filename="F5TTS_Base/model_1200000.safetensors")
@@ -40,8 +83,12 @@ def init_model():
                 ckpt_path=ckpt_path,
                 device=DEVICE
             )
-            vocoder = load_vocoder()
+            vocoder = load_vocoder(device=DEVICE)
             print(f"Model loaded successfully from {ckpt_path}")
+            print(
+                f"Inference tuning: F5_NFE_STEP={NFE_STEP} (env, default 24), "
+                f"F5_CFG_STRENGTH={CFG_STRENGTH} (env, default 2.0)"
+            )
         except Exception as e:
             print(f"Error loading model: {e}")
             import traceback
@@ -99,14 +146,16 @@ async def tts(data: TTSRequest):
         with open(REF_TEXT_PATH, "r", encoding="utf-8") as f:
             ref_text = f.read()
 
-        # Perform inference
-        audio, sr = infer_process(
+        # infer_process returns (waveform, sample_rate, mel_spectrogram)
+        audio, sr, _ = infer_process(
             REF_AUDIO_PATH,
             ref_text,
             data.gen_text,
             ema_model,
             vocoder,
-            device=DEVICE
+            device=DEVICE,
+            nfe_step=NFE_STEP,
+            cfg_strength=CFG_STRENGTH,
         )
 
         # Convert numpy array to WAV

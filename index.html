@@ -17,7 +17,9 @@
     <div id="voice-setup-modal" class="modal hidden">
       <div class="modal-content">
         <h2>Voice Setup</h2>
-        <p>Record or upload a 5-10 second clip of the voice you want to clone.</p>
+        <p>Record or upload a <strong>3–10 second</strong> clip of the voice you want to clone.</p>
+        <p class="voice-hint">The text box must be the <strong>exact words</strong> spoken in that clip (same language, no paraphrase). If it does not match, speech will sound garbled.</p>
+        <p class="voice-note">No training step: saving only stores your clip and transcript on the server for the next speech request. <span lang="de">Kein Training — „Speichern“ lädt nur Referenz + Text hoch.</span></p>
         <div class="voice-options">
           <div class="option-group">
             <h3>Option 1: Record</h3>
@@ -39,10 +41,10 @@
         </div>
 
         <div class="form-group">
-          <label for="ref-text">What was said in the recording?</label>
-          <textarea id="ref-text" placeholder="Enter transcript here..."></textarea>
+          <label for="ref-text">Verbatim transcript of the clip above</label>
+          <textarea id="ref-text" placeholder="Type exactly what you said in the audio, word for word..."></textarea>
         </div>
-        <button id="save-voice-btn" class="btn primary">Save Voice</button>
+        <button id="save-voice-btn" class="btn primary" type="button" disabled>Save Voice</button>
       </div>
     </div>
       <canvas id="vrm-canvas"></canvas>
