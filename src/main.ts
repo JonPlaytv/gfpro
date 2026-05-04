@@ -106,3 +106,80 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// --- Ollama Chat Integration ---
+const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+const chatSubmit = document.getElementById('chat-submit') as HTMLButtonElement;
+const chatResponse = document.getElementById('chat-response') as HTMLDivElement;
+const chatResponseText = document.getElementById('chat-response-text') as HTMLDivElement;
+
+// Maintain some conversation history for context
+let conversationHistory: { role: string, content: string }[] = [];
+
+async function sendToOllama(message: string) {
+  // Update UI to show loading state
+  chatResponse.classList.remove('hidden');
+  chatResponseText.innerHTML = '<span style="color: #94a3b8; font-style: italic;">AI Partner is thinking...</span>';
+  chatInput.value = '';
+  chatInput.disabled = true;
+  chatSubmit.disabled = true;
+
+  conversationHistory.push({ role: 'user', content: message });
+
+  try {
+    const response = await fetch('http://localhost:11434/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama3.1:8b',
+        messages: [
+          { role: 'system', content: 'You are a helpful, friendly AI anime companion. Keep your answers concise, engaging, and conversational.' },
+          ...conversationHistory
+        ],
+        stream: false
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiMessage = data.message.content;
+    
+    // Save AI response to history
+    conversationHistory.push({ role: 'assistant', content: aiMessage });
+
+    // Display AI response
+    chatResponseText.innerText = aiMessage;
+
+  } catch (error) {
+    console.error('Error communicating with Ollama:', error);
+    chatResponseText.innerHTML = '<span style="color: #ef4444;">Could not connect to Ollama. Make sure it is running locally and CORS is configured (OLLAMA_ORIGINS="*").</span>';
+    // Remove the failed user message from history so they can try again
+    conversationHistory.pop();
+  } finally {
+    chatInput.disabled = false;
+    chatSubmit.disabled = false;
+    chatInput.focus();
+  }
+}
+
+// Event Listeners for Chat
+chatSubmit.addEventListener('click', () => {
+  const message = chatInput.value.trim();
+  if (message) {
+    sendToOllama(message);
+  }
+});
+
+chatInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    const message = chatInput.value.trim();
+    if (message) {
+      sendToOllama(message);
+    }
+  }
+});

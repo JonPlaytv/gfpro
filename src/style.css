@@ -86,14 +86,44 @@ body, html {
   to { transform: rotate(360deg); }
 }
 
-/* Glassy Chat Textbox */
-.chat-container {
+/* Chat Layout */
+.chat-wrapper {
   position: absolute;
   bottom: 40px;
   left: 50%;
   transform: translateX(-50%);
   width: 80%;
   max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 20;
+}
+
+/* AI Response Box */
+.chat-response {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px 20px;
+  color: #e2e8f0;
+  font-size: 1.05rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  line-height: 1.6;
+}
+
+.chat-response.hidden {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+/* Glassy Chat Textbox */
+.chat-container {
+  width: 100%;
   padding: 12px 16px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.05);
@@ -103,7 +133,6 @@ body, html {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   display: flex;
   gap: 12px;
-  z-index: 20;
   transition: all 0.3s ease;
 }
 
