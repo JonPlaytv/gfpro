@@ -5,9 +5,15 @@ export class VoiceManager {
   private isSpeaking: boolean = false;
   private audioContext: AudioContext | null = null;
   private audioSource: AudioBufferSourceNode | null = null;
+  private analyser: AnalyserNode | null = null;
+  private dataArray: Uint8Array<ArrayBuffer> | null = null;
 
   constructor() {
     this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    this.analyser = this.audioContext.createAnalyser();
+    this.analyser.fftSize = 256;
+    const bufferLength = this.analyser.frequencyBinCount;
+    this.dataArray = new Uint8Array(bufferLength) as Uint8Array<ArrayBuffer>;
   }
 
   public setVrm(vrm: VRM) {
@@ -15,7 +21,8 @@ export class VoiceManager {
   }
 
   public async speak(text: string, targetLang: string = 'ja') {
-    console.log('VoiceManager: Speaking with GPT-SoVITS...', text, 'Language:', targetLang);
+    const normalizedText = this.normalizeEmotionTags(text);
+    console.log('VoiceManager: Speaking with GPT-SoVITS...', normalizedText, 'Language:', targetLang);
     if (this.isSpeaking) {
       this.stop();
     }
@@ -30,7 +37,7 @@ export class VoiceManager {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          gen_text: text,
+          gen_text: normalizedText,
           target_lang: targetLang
         }),
         signal: controller.signal
@@ -42,7 +49,8 @@ export class VoiceManager {
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.audioContext!.decodeAudioData(arrayBuffer);
+      const audioData = arrayBuffer as ArrayBuffer;
+      const audioBuffer = await this.audioContext!.decodeAudioData(audioData);
 
       this.playAudio(audioBuffer);
     } catch (error) {
@@ -57,7 +65,10 @@ export class VoiceManager {
 
     this.audioSource = this.audioContext!.createBufferSource();
     this.audioSource.buffer = buffer;
-    this.audioSource.connect(this.audioContext!.destination);
+    
+    // Connect source to analyser and then to destination
+    this.audioSource.connect(this.analyser!);
+    this.analyser!.connect(this.audioContext!.destination);
     
     this.audioSource.onended = () => {
       this.isSpeaking = false;
@@ -78,9 +89,18 @@ export class VoiceManager {
   }
 
   public update() {
-    if (this.isSpeaking && this.currentVrm && this.currentVrm.expressionManager) {
-      // Procedural Lip Sync while audio is playing
-      const value = Math.abs(Math.sin(performance.now() * 0.015));
+    if (this.isSpeaking && this.currentVrm && this.currentVrm.expressionManager && this.analyser) {
+      this.analyser.getByteFrequencyData(this.dataArray!);
+      
+      // Calculate average volume
+      let sum = 0;
+      for (let i = 0; i < this.dataArray!.length; i++) {
+        sum += this.dataArray![i];
+      }
+      const average = sum / this.dataArray!.length;
+      
+      // Map volume to 'aa' expression (0 to 1)
+      const value = Math.min(1.0, average / 40); // Tweak divisor for sensitivity
       this.currentVrm.expressionManager.setValue('aa', value);
     }
   }
@@ -89,6 +109,12 @@ export class VoiceManager {
     if (this.currentVrm && this.currentVrm.expressionManager) {
       this.currentVrm.expressionManager.setValue('aa', 0);
     }
+  }
+
+  private normalizeEmotionTags(text: string): string {
+    return text
+      .replace(/\[([a-zA-Z][a-zA-Z0-9_-]*)\[/g, '[$1]')
+      .replace(/\[([a-zA-Z][a-zA-Z0-9_-]*)\](?!\s|$|[.,!?;:])/g, '[$1] ');
   }
 
   public async setVoice(refAudioB64: string, refText: string, refLang: string = 'ja') {

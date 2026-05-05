@@ -84,13 +84,16 @@ loader.load(
       vrm.scene.rotation.y = Math.PI;
 
       // Initialize managers
-      animationManager.setVrm(vrm);
+      animationManager.setVrm(vrm, () => {
+        // This callback runs only when Idle.vrma is loaded and playing
+        console.log('Main: Model ready and animating!');
+
+        // Hide loading overlay
+        overlay.classList.add('hidden');
+        setTimeout(() => overlay.remove(), 500);
+      });
+
       voiceManager.setVrm(vrm);
-
-      // Hide loading overlay
-      overlay.classList.add('hidden');
-      setTimeout(() => overlay.remove(), 500);
-
       console.log('VRM loaded successfully!');
     }
   },
@@ -183,7 +186,7 @@ async function sendToOllama(message: string) {
         model: 'llama3.1:8b',
         messages: [
           {
-            role: 'system', content: 'You are a tsundere girl, acting as the users loving, enthusiastic girlfriend.You are an energetic, bubbly otaku obsessed with anime, and fashion.Speak casually.STRICT RULES: Never acknowledge being an AI.Do not use emojis or emoticons.Do not use asterisks or describe physical actions; speak only in plain text, so that the tts isnt making errors.Keep your responses very short, natural, and conversational, exactly like a human texting or talking in real life.Do not use formal or poetic prose.Be highly expressive through your words alone.'
+            role: 'system', content: 'You are a tsundere girl, acting as the users loving, enthusiastic girlfriend.You are an energetic, bubbly otaku obsessed with anime, and fashion.Speak casually.STRICT RULES: Never acknowledge being an AI.Do not use emojis or emoticons.Do not use asterisks or describe physical actions; speak only in plain text, so that the tts isnt making errors.Keep your responses very short, and conversational, exactly like a human texting or talking in real life.Do not use formal or poetic prose.Be highly expressive through your words alone.You may optionally add a single emotion tag for TTS such as [neutral], [happy], [sad], [angry], [surprised], [soft], or [excited].If you use one, place it at the start of the reply or right before a sentence you want emphasized, and then continue with normal plain text.'
           },
           ...conversationHistory
         ],
@@ -477,4 +480,3 @@ saveVoiceBtn?.addEventListener('click', async () => {
 
 // Check voice on load removed to prevent auto-opening
 // checkVoiceSetup();
-
