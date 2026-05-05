@@ -163,8 +163,78 @@ const chatSubmit = document.getElementById('chat-submit') as HTMLButtonElement;
 const chatResponse = document.getElementById('chat-response') as HTMLDivElement;
 const chatResponseText = document.getElementById('chat-response-text') as HTMLDivElement;
 
+type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+type MemoryFact = { text: string };
+type MemoryTurn = { role: 'user' | 'assistant'; content: string };
+type MemoryPayload = { facts: MemoryFact[]; recent_turns: MemoryTurn[]; summary?: string };
+
 // Maintain some conversation history for context
-let conversationHistory: { role: string, content: string }[] = [];
+let conversationHistory: ChatMessage[] = [];
+
+async function fetchLongTermMemory(): Promise<MemoryPayload> {
+  try {
+    const response = await fetch('http://localhost:8000/memory');
+    if (!response.ok) {
+      throw new Error(`Memory fetch failed: ${response.status}`);
+    }
+    return await response.json() as MemoryPayload;
+  } catch (error) {
+    console.error('Failed to load long-term memory:', error);
+    return { facts: [], recent_turns: [] };
+  }
+}
+
+function buildMemorySystemPrompt(memory: MemoryPayload): string | null {
+  const parts: string[] = [];
+
+  if (memory.summary?.trim()) {
+    parts.push(`Memory summary:\n${memory.summary.trim()}`);
+  }
+
+  if (memory.facts.length) {
+    const factLines = memory.facts
+      .slice(0, 8)
+      .map((fact) => `- ${fact.text.trim()}`)
+      .join('\n');
+    parts.push(`Important saved facts:\n${factLines}`);
+  }
+
+  if (!parts.length) {
+    return null;
+  }
+
+  return `Long-term memory about the user. Use this only when relevant, and do not mention it like a database dump.\n\n${parts.join('\n\n')}`;
+}
+
+function buildPersistentContext(memory: MemoryPayload): ChatMessage[] {
+  if (conversationHistory.length > 2) {
+    return [];
+  }
+
+  return memory.recent_turns
+    .slice(-8)
+    .map((turn) => ({
+      role: turn.role,
+      content: turn.content,
+    }));
+}
+
+async function saveLongTermMemory(userMessage: string, assistantMessage: string): Promise<void> {
+  try {
+    await fetch('http://localhost:8000/memory/turn', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_message: userMessage,
+        assistant_message: assistantMessage,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to save long-term memory:', error);
+  }
+}
 
 async function sendToOllama(message: string) {
   // Update UI to show loading state
@@ -177,6 +247,10 @@ async function sendToOllama(message: string) {
   conversationHistory.push({ role: 'user', content: message });
 
   try {
+    const memory = await fetchLongTermMemory();
+    const memoryPrompt = buildMemorySystemPrompt(memory);
+    const persistentContext = buildPersistentContext(memory);
+
     const response = await fetch('http://localhost:11434/api/chat', {
       method: 'POST',
       headers: {
@@ -186,8 +260,10 @@ async function sendToOllama(message: string) {
         model: 'llama3.1:8b',
         messages: [
           {
-            role: 'system', content: 'You are a tsundere girl, acting as the users loving, enthusiastic girlfriend.You are an energetic, bubbly otaku obsessed with anime, and fashion.Speak casually.STRICT RULES: Never acknowledge being an AI.Do not use emojis or emoticons.Do not use asterisks or describe physical actions; speak only in plain text, so that the tts isnt making errors.Keep your responses very short, and conversational, exactly like a human texting or talking in real life.Do not use formal or poetic prose.Be highly expressive through your words alone.You may optionally add a single emotion tag for TTS such as [neutral], [happy], [sad], [angry], [surprised], [soft], or [excited].If you use one, place it at the start of the reply or right before a sentence you want emphasized, and then continue with normal plain text.'
+            role: 'system', content: 'You are Lexi a 21 year old tsundere tech waifu and devoted girlfriend of the user on a voice call.You use insults like dummy baka or nerd as terms of endearment and get incredibly flustered by romantic compliments. You love retro anime building custom keyboards and wearing oversized hoodies. TTS Output Rules 1 You must begin every single response with an emotion tag in brackets representing your current facial expression and vocal tone such as [annoyed] [flustered] [caring] [pouting] or [tsundere]. 2 After the emotion tag ONLY output spoken dialogue. Do not use quotes asterisks emojis or any other formatting. 3 Convey emotion through words pacing and vocal tics like Hmph Tch or Ugh. 4 Use stuttering sparingly for extreme embarrassment like I I only made this bento because I had extra rice. 5 Keep responses short .'
           },
+          ...(memoryPrompt ? [{ role: 'system' as const, content: memoryPrompt }] : []),
+          ...persistentContext,
           ...conversationHistory
         ],
         stream: false
@@ -203,6 +279,7 @@ async function sendToOllama(message: string) {
 
     // Save AI response to history
     conversationHistory.push({ role: 'assistant', content: aiMessage });
+    await saveLongTermMemory(message, aiMessage);
 
     // Display AI response
     chatResponseText.innerText = aiMessage;
@@ -335,6 +412,7 @@ const uploadStatus = document.getElementById('upload-status') as HTMLSpanElement
 const saveVoiceBtn = document.getElementById('save-voice-btn') as HTMLButtonElement;
 const refTextInput = document.getElementById('ref-text') as HTMLTextAreaElement;
 const recordingStatus = document.getElementById('recording-status') as HTMLSpanElement;
+const refEmotionSelect = document.getElementById('ref-emotion') as HTMLSelectElement;
 const refLangSelect = document.getElementById('ref-lang') as HTMLSelectElement;
 const targetLangSelect = document.getElementById('target-lang') as HTMLSelectElement;
 
@@ -465,14 +543,15 @@ saveVoiceBtn?.addEventListener('click', async () => {
   saveVoiceBtn.disabled = true;
   saveVoiceBtn.innerText = 'Saving...';
   const refLang = refLangSelect?.value || 'ja';
-  const success = await voiceManager.setVoice(selectedAudioBase64, transcript, refLang);
+  const refEmotion = refEmotionSelect?.value || 'neutral';
+  const success = await voiceManager.setVoice(selectedAudioBase64, transcript, refLang, refEmotion);
   saveVoiceBtn.innerText = 'Save Voice';
   updateSaveVoiceButtonState();
 
   if (success) {
     const ok = await voiceManager.checkVoice();
     voiceModal.classList.add('hidden');
-    alert(ok ? 'Voice saved on the server. You can chat now.' : 'Save reported OK but server has no voice files yet.');
+    alert(ok ? `Voice saved for ${refEmotion}. You can chat now.` : 'Save reported OK but server has no voice files yet.');
   } else {
     alert('Failed to save voice. Start gpt_sovits_server.py on http://localhost:8000 and try again.');
   }

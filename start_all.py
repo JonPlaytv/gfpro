@@ -3,6 +3,8 @@ import time
 import sys
 import os
 import signal
+import urllib.request
+import urllib.error
 
 def start_process(command, cwd=None, name="Process"):
     print(f"Starting {name}...")
@@ -10,6 +12,13 @@ def start_process(command, cwd=None, name="Process"):
     if isinstance(command, list):
         command = " ".join(command)
     return subprocess.Popen(command, cwd=cwd, shell=True)
+
+def is_http_ready(url, timeout=2):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            return 200 <= response.status < 500
+    except Exception:
+        return False
 
 def kill_process_tree(p):
     """
@@ -51,26 +60,40 @@ def main():
     signal.signal(signal.SIGTERM, lambda s, f: shutdown())
 
     try:
-        # 1. Start GPT-SoVITS API
+        # 1. Start Ollama if needed
+        if is_http_ready("http://localhost:11434/api/tags"):
+            print("Ollama is already running.")
+        else:
+            processes.append(start_process("ollama serve", name="Ollama"))
+            time.sleep(3)
+
+        # 2. Start GPT-SoVITS API if needed
         sovits_dir = os.path.join(os.getcwd(), "GPT-SoVITS-v3lora-20250228", "GPT-SoVITS-v3lora-20250228")
         python_exe = f'"{sys.executable}"'
-        processes.append(start_process([python_exe, "api_v2.py"], cwd=sovits_dir, name="GPT-SoVITS API"))
+        if is_http_ready("http://localhost:9880"):
+            print("GPT-SoVITS API is already running.")
+        else:
+            processes.append(start_process([python_exe, "api_v2.py"], cwd=sovits_dir, name="GPT-SoVITS API"))
         
         # Give it a moment to start
         time.sleep(5)
         
-        # 2. Start Bridge Server
-        processes.append(start_process([python_exe, "gpt_sovits_server.py"], name="Bridge Server"))
+        # 3. Start Bridge Server if needed
+        if is_http_ready("http://localhost:8000/has_voice"):
+            print("Bridge Server is already running.")
+        else:
+            processes.append(start_process([python_exe, "gpt_sovits_server.py"], name="Bridge Server"))
         
-        # 3. Start Frontend (Vite)
+        # 4. Start Frontend (Vite)
         npm_cmd = "cmd /c npm run dev" if os.name == 'nt' else "npm run dev"
         processes.append(start_process(npm_cmd, name="Vite Frontend"))
         
         print("\n" + "="*50)
         print("ALL SYSTEMS STARTED")
-        print("1. GPT-SoVITS API (Port 9880)")
-        print("2. Bridge Server (Port 8000)")
-        print("3. Vite Frontend (Check console for URL)")
+        print("1. Ollama Chat API (Port 11434)")
+        print("2. GPT-SoVITS API (Port 9880)")
+        print("3. Bridge Server with memory + emotion routing (Port 8000)")
+        print("4. Vite Frontend (Check console for URL)")
         print("="*50)
         print("\nPress Ctrl+C to stop all.\n")
         
