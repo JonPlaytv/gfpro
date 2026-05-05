@@ -14,8 +14,16 @@ overlay.className = 'loading-overlay';
 overlay.innerHTML = `
   <div class="spinner"></div>
   <div class="loading-text">Waking up AI Partner...</div>
+  <div class="progress-container">
+    <div id="progress-bar" class="progress-bar"></div>
+  </div>
+  <div id="progress-percentage" class="progress-percentage">0%</div>
 `;
 document.getElementById('app')?.appendChild(overlay);
+
+const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
+const progressPercentage = document.getElementById('progress-percentage') as HTMLDivElement;
+const loadingText = overlay.querySelector('.loading-text') as HTMLDivElement;
 
 // --- Scene Setup ---
 const canvas = document.getElementById('vrm-canvas') as HTMLCanvasElement;
@@ -87,7 +95,14 @@ loader.load(
     }
   },
   (progress) => {
-    console.log('Loading model...', 100.0 * (progress.loaded / progress.total), '%');
+    const percent = Math.floor(100.0 * (progress.loaded / progress.total));
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (progressPercentage) progressPercentage.innerText = `${percent}%`;
+    
+    if (percent >= 100 && loadingText) {
+      loadingText.innerText = 'Initializing...';
+    }
+    console.log('Loading model...', percent, '%');
   },
   (error) => {
     console.error('An error happened loading the VRM', error);
@@ -116,6 +131,21 @@ function animate() {
 }
 
 animate();
+
+// --- Initialization & Voice Check ---
+async function initializeApp() {
+  // Check if voice is already set up on the server
+  const hasVoice = await voiceManager.checkVoice();
+  if (!hasVoice) {
+    console.log('No voice detected. Opening setup modal.');
+    voiceModal.classList.remove('hidden');
+    // Ensure the save button state is correct
+    updateSaveVoiceButtonState();
+  }
+}
+
+// Start the check after the VRM begins loading (non-blocking)
+initializeApp();
 
 // --- Window Resizing ---
 window.addEventListener('resize', () => {
@@ -175,7 +205,8 @@ async function sendToOllama(message: string) {
     chatResponseText.innerText = aiMessage;
 
     // Speak the response
-    voiceManager.speak(aiMessage);
+    const targetLang = targetLangSelect?.value || 'ja';
+    voiceManager.speak(aiMessage, targetLang);
 
 
   } catch (error) {
@@ -217,6 +248,8 @@ const uploadStatus = document.getElementById('upload-status') as HTMLSpanElement
 const saveVoiceBtn = document.getElementById('save-voice-btn') as HTMLButtonElement;
 const refTextInput = document.getElementById('ref-text') as HTMLTextAreaElement;
 const recordingStatus = document.getElementById('recording-status') as HTMLSpanElement;
+const refLangSelect = document.getElementById('ref-lang') as HTMLSelectElement;
+const targetLangSelect = document.getElementById('target-lang') as HTMLSelectElement;
 
 let mediaRecorder: MediaRecorder | null = null;
 let recordStream: MediaStream | null = null;
@@ -344,7 +377,8 @@ saveVoiceBtn?.addEventListener('click', async () => {
 
   saveVoiceBtn.disabled = true;
   saveVoiceBtn.innerText = 'Saving...';
-  const success = await voiceManager.setVoice(selectedAudioBase64, transcript);
+  const refLang = refLangSelect?.value || 'ja';
+  const success = await voiceManager.setVoice(selectedAudioBase64, transcript, refLang);
   saveVoiceBtn.innerText = 'Save Voice';
   updateSaveVoiceButtonState();
 
@@ -353,7 +387,7 @@ saveVoiceBtn?.addEventListener('click', async () => {
     voiceModal.classList.add('hidden');
     alert(ok ? 'Voice saved on the server. You can chat now.' : 'Save reported OK but server has no voice files yet.');
   } else {
-    alert('Failed to save voice. Start f5_tts_server.py on http://localhost:8000 and try again.');
+    alert('Failed to save voice. Start gpt_sovits_server.py on http://localhost:8000 and try again.');
   }
 });
 

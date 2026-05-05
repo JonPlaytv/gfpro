@@ -44,6 +44,31 @@
           <label for="ref-text">Verbatim transcript of the clip above</label>
           <textarea id="ref-text" placeholder="Type exactly what you said in the audio, word for word..."></textarea>
         </div>
+
+        <div class="voice-languages">
+          <div class="form-group half">
+            <label for="ref-lang">Reference Language</label>
+            <select id="ref-lang">
+              <option value="auto">Auto Detect</option>
+              <option value="zh">Chinese (Mandarin)</option>
+              <option value="en">English</option>
+              <option value="ja" selected>Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="yue">Cantonese</option>
+            </select>
+          </div>
+          <div class="form-group half">
+            <label for="target-lang">Target Language (AI)</label>
+            <select id="target-lang">
+              <option value="zh">Chinese (Mandarin)</option>
+              <option value="en">English</option>
+              <option value="ja" selected>Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="yue">Cantonese</option>
+            </select>
+          </div>
+        </div>
+
         <button id="save-voice-btn" class="btn primary" type="button" disabled>Save Voice</button>
       </div>
     </div>

@@ -14,23 +14,31 @@ export class VoiceManager {
     this.currentVrm = vrm;
   }
 
-  public async speak(text: string) {
-    console.log('VoiceManager: Speaking with F5-TTS...', text);
+  public async speak(text: string, targetLang: string = 'ja') {
+    console.log('VoiceManager: Speaking with GPT-SoVITS...', text, 'Language:', targetLang);
     if (this.isSpeaking) {
       this.stop();
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
       const response = await fetch('http://localhost:8000/tts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ gen_text: text }),
+        body: JSON.stringify({ 
+          gen_text: text,
+          target_lang: targetLang
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error('F5-TTS server error');
+        throw new Error('GPT-SoVITS server error');
       }
 
       const arrayBuffer = await response.arrayBuffer();
@@ -38,7 +46,7 @@ export class VoiceManager {
 
       this.playAudio(audioBuffer);
     } catch (error) {
-      console.error('Error with F5-TTS:', error);
+      console.error('Error with GPT-SoVITS:', error);
     }
   }
 
@@ -83,14 +91,18 @@ export class VoiceManager {
     }
   }
 
-  public async setVoice(refAudioB64: string, refText: string) {
+  public async setVoice(refAudioB64: string, refText: string, refLang: string = 'ja') {
     try {
       const response = await fetch('http://localhost:8000/set_voice', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ref_audio_b64: refAudioB64, ref_text: refText }),
+        body: JSON.stringify({ 
+          ref_audio_b64: refAudioB64, 
+          ref_text: refText,
+          ref_lang: refLang
+        }),
       });
       if (!response.ok) {
         const detail = await response.text();

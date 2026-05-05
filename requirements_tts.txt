@@ -1,4 +1,4 @@
-f5-tts
+requests
 fastapi
 uvicorn
 python-multipart

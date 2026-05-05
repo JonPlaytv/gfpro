@@ -76,10 +76,41 @@ body, html {
 
 .loading-text {
   font-size: 1.2rem;
-  font-weight: 500;
+  font-weight: 600;
   color: #f8fafc;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  margin-bottom: 24px;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+.progress-container {
+  width: 280px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 12px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+  transition: width 0.3s ease-out;
+}
+
+.progress-percentage {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #38bdf8;
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes spin {
@@ -375,6 +406,35 @@ body, html {
   color: #f43f5e;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.voice-languages {
+  display: flex;
+  gap: 16px;
+}
+
+.form-group.half {
+  flex: 1;
+}
+
+.form-group select {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+  color: #fff;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  border-color: #38bdf8;
+}
+
+.form-group select option {
+  background: #1e293b;
+  color: #fff;
 }
 
 .hidden {
