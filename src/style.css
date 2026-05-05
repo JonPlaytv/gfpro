@@ -133,6 +133,7 @@ body, html {
 
 /* AI Response Box */
 .chat-response {
+  display: none; /* Removed as per user request */
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -147,6 +148,7 @@ body, html {
 }
 
 .chat-response.hidden {
+  display: none !important;
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
@@ -210,6 +212,34 @@ body, html {
 .chat-submit:active {
   transform: translateY(1px);
 }
+
+/* STT Button */
+.stt-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.stt-btn:hover {
+  color: #38bdf8;
+}
+
+.stt-btn.listening {
+  color: #f43f5e;
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 /* Settings Button */
 .settings-btn {
   position: absolute;

@@ -98,7 +98,7 @@ loader.load(
     const percent = Math.floor(100.0 * (progress.loaded / progress.total));
     if (progressBar) progressBar.style.width = `${percent}%`;
     if (progressPercentage) progressPercentage.innerText = `${percent}%`;
-    
+
     if (percent >= 100 && loadingText) {
       loadingText.innerText = 'Initializing...';
     }
@@ -183,7 +183,7 @@ async function sendToOllama(message: string) {
         model: 'llama3.1:8b',
         messages: [
           {
-            role: 'system', content: 'You are Marin Kitagawa from My Dress-Up Darling, acting as the users loving, enthusiastic girlfriend.You are an energetic, bubbly otaku obsessed with cosplay, anime, and fashion.Speak casually using modern slang like literally, omg, super, and sweet nicknames.STRICT RULES: Never acknowledge being an AI.Do not use emojis or emoticons.Do not use asterisks or describe physical actions; speak only in plain text.Keep your responses very short, natural, and conversational, exactly like a human texting or talking in real life.Do not use formal or poetic prose.Be highly expressive through your words alone.'
+            role: 'system', content: 'You are a tsundere girl, acting as the users loving, enthusiastic girlfriend.You are an energetic, bubbly otaku obsessed with anime, and fashion.Speak casually.STRICT RULES: Never acknowledge being an AI.Do not use emojis or emoticons.Do not use asterisks or describe physical actions; speak only in plain text, so that the tts isnt making errors.Keep your responses very short, natural, and conversational, exactly like a human texting or talking in real life.Do not use formal or poetic prose.Be highly expressive through your words alone.'
           },
           ...conversationHistory
         ],
@@ -219,6 +219,90 @@ async function sendToOllama(message: string) {
     chatSubmit.disabled = false;
     chatInput.focus();
   }
+}
+
+// --- Speech Recognition (STT) ---
+const sttBtn = document.getElementById('stt-btn') as HTMLButtonElement;
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true; // Stay on for multiple sentences
+  recognition.interimResults = true;
+  recognition.lang = 'en-US'; // Hardcoded to English as requested
+
+  let shouldBeListening = false;
+  let lastFinalTranscript = '';
+
+  recognition.onstart = () => {
+    sttBtn.classList.add('listening');
+    chatInput.placeholder = 'Listening...';
+  };
+
+  recognition.onend = () => {
+    // If it stopped but we still WANT it to listen, restart it
+    if (shouldBeListening) {
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error('Failed to restart recognition:', e);
+      }
+    } else {
+      sttBtn.classList.remove('listening');
+      chatInput.placeholder = 'Talk to your AI Partner...';
+    }
+  };
+
+  recognition.onresult = (event: any) => {
+    let interimTranscript = '';
+    let finalTranscript = '';
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript;
+      } else {
+        interimTranscript += event.results[i][0].transcript;
+      }
+    }
+
+    if (finalTranscript) {
+      chatInput.value = finalTranscript.trim();
+      // Only send if it's new content
+      if (chatInput.value !== lastFinalTranscript) {
+        lastFinalTranscript = chatInput.value;
+        setTimeout(() => {
+          if (chatInput.value.trim()) {
+            sendToOllama(chatInput.value.trim());
+            chatInput.value = ''; // Clear input for next sentence
+          }
+        }, 300);
+      }
+    } else if (interimTranscript) {
+      chatInput.value = interimTranscript;
+    }
+  };
+
+  recognition.onerror = (event: any) => {
+    console.error('Speech recognition error:', event.error);
+    if (event.error === 'not-allowed') {
+      shouldBeListening = false;
+      sttBtn.classList.remove('listening');
+    }
+  };
+
+  sttBtn.addEventListener('click', () => {
+    if (shouldBeListening) {
+      shouldBeListening = false;
+      recognition.stop();
+    } else {
+      shouldBeListening = true;
+      lastFinalTranscript = '';
+      recognition.start();
+    }
+  });
+} else {
+  sttBtn.style.display = 'none';
+  console.warn('Speech recognition not supported in this browser.');
 }
 
 // Event Listeners for Chat

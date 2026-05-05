@@ -116,7 +116,10 @@ async def tts(data: TTSRequest):
             "top_k": 5,
             "top_p": 1,
             "temperature": 1,
-            "speed_factor": 1.0
+            "speed_factor": 1.0,
+            "streaming_mode": True,
+            "parallel_infer": True,
+            "text_split_method": "cut5"
         }
 
         print(f"Proxying TTS request to GPT-SoVITS at {GPT_SOVITS_URL}...")
