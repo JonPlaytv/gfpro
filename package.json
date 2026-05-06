@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@pixiv/three-vrm": "^3.5.2",
+    "@pixiv/three-vrm-animation": "^3.5.2",
     "three": "^0.184.0"
   }
 }

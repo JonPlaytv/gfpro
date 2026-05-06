@@ -76,10 +76,41 @@ body, html {
 
 .loading-text {
   font-size: 1.2rem;
-  font-weight: 500;
+  font-weight: 600;
   color: #f8fafc;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  margin-bottom: 24px;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+.progress-container {
+  width: 280px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 12px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+  transition: width 0.3s ease-out;
+}
+
+.progress-percentage {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #38bdf8;
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes spin {
@@ -102,6 +133,7 @@ body, html {
 
 /* AI Response Box */
 .chat-response {
+  display: none; /* Removed as per user request */
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -116,6 +148,7 @@ body, html {
 }
 
 .chat-response.hidden {
+  display: none !important;
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
@@ -179,6 +212,34 @@ body, html {
 .chat-submit:active {
   transform: translateY(1px);
 }
+
+/* STT Button */
+.stt-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.stt-btn:hover {
+  color: #38bdf8;
+}
+
+.stt-btn.listening {
+  color: #f43f5e;
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 /* Settings Button */
 .settings-btn {
   position: absolute;
@@ -375,6 +436,35 @@ body, html {
   color: #f43f5e;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.voice-languages {
+  display: flex;
+  gap: 16px;
+}
+
+.form-group.half {
+  flex: 1;
+}
+
+.form-group select {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+  color: #fff;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  border-color: #38bdf8;
+}
+
+.form-group select option {
+  background: #1e293b;
+  color: #fff;
 }
 
 .hidden {

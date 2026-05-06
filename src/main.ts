@@ -14,8 +14,16 @@ overlay.className = 'loading-overlay';
 overlay.innerHTML = `
   <div class="spinner"></div>
   <div class="loading-text">Waking up AI Partner...</div>
+  <div class="progress-container">
+    <div id="progress-bar" class="progress-bar"></div>
+  </div>
+  <div id="progress-percentage" class="progress-percentage">0%</div>
 `;
 document.getElementById('app')?.appendChild(overlay);
+
+const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
+const progressPercentage = document.getElementById('progress-percentage') as HTMLDivElement;
+const loadingText = overlay.querySelector('.loading-text') as HTMLDivElement;
 
 // --- Scene Setup ---
 const canvas = document.getElementById('vrm-canvas') as HTMLCanvasElement;
@@ -76,18 +84,28 @@ loader.load(
       vrm.scene.rotation.y = Math.PI;
 
       // Initialize managers
-      animationManager.setVrm(vrm);
+      animationManager.setVrm(vrm, () => {
+        // This callback runs only when Idle.vrma is loaded and playing
+        console.log('Main: Model ready and animating!');
+
+        // Hide loading overlay
+        overlay.classList.add('hidden');
+        setTimeout(() => overlay.remove(), 500);
+      });
+
       voiceManager.setVrm(vrm);
-
-      // Hide loading overlay
-      overlay.classList.add('hidden');
-      setTimeout(() => overlay.remove(), 500);
-
       console.log('VRM loaded successfully!');
     }
   },
   (progress) => {
-    console.log('Loading model...', 100.0 * (progress.loaded / progress.total), '%');
+    const percent = Math.floor(100.0 * (progress.loaded / progress.total));
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (progressPercentage) progressPercentage.innerText = `${percent}%`;
+
+    if (percent >= 100 && loadingText) {
+      loadingText.innerText = 'Initializing...';
+    }
+    console.log('Loading model...', percent, '%');
   },
   (error) => {
     console.error('An error happened loading the VRM', error);
@@ -117,6 +135,21 @@ function animate() {
 
 animate();
 
+// --- Initialization & Voice Check ---
+async function initializeApp() {
+  // Check if voice is already set up on the server
+  const hasVoice = await voiceManager.checkVoice();
+  if (!hasVoice) {
+    console.log('No voice detected. Opening setup modal.');
+    voiceModal.classList.remove('hidden');
+    // Ensure the save button state is correct
+    updateSaveVoiceButtonState();
+  }
+}
+
+// Start the check after the VRM begins loading (non-blocking)
+initializeApp();
+
 // --- Window Resizing ---
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -130,8 +163,78 @@ const chatSubmit = document.getElementById('chat-submit') as HTMLButtonElement;
 const chatResponse = document.getElementById('chat-response') as HTMLDivElement;
 const chatResponseText = document.getElementById('chat-response-text') as HTMLDivElement;
 
+type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+type MemoryFact = { text: string };
+type MemoryTurn = { role: 'user' | 'assistant'; content: string };
+type MemoryPayload = { facts: MemoryFact[]; recent_turns: MemoryTurn[]; summary?: string };
+
 // Maintain some conversation history for context
-let conversationHistory: { role: string, content: string }[] = [];
+let conversationHistory: ChatMessage[] = [];
+
+async function fetchLongTermMemory(): Promise<MemoryPayload> {
+  try {
+    const response = await fetch('http://localhost:8000/memory');
+    if (!response.ok) {
+      throw new Error(`Memory fetch failed: ${response.status}`);
+    }
+    return await response.json() as MemoryPayload;
+  } catch (error) {
+    console.error('Failed to load long-term memory:', error);
+    return { facts: [], recent_turns: [] };
+  }
+}
+
+function buildMemorySystemPrompt(memory: MemoryPayload): string | null {
+  const parts: string[] = [];
+
+  if (memory.summary?.trim()) {
+    parts.push(`Memory summary:\n${memory.summary.trim()}`);
+  }
+
+  if (memory.facts.length) {
+    const factLines = memory.facts
+      .slice(0, 8)
+      .map((fact) => `- ${fact.text.trim()}`)
+      .join('\n');
+    parts.push(`Important saved facts:\n${factLines}`);
+  }
+
+  if (!parts.length) {
+    return null;
+  }
+
+  return `Long-term memory about the user. Use this only when relevant, and do not mention it like a database dump.\n\n${parts.join('\n\n')}`;
+}
+
+function buildPersistentContext(memory: MemoryPayload): ChatMessage[] {
+  if (conversationHistory.length > 2) {
+    return [];
+  }
+
+  return memory.recent_turns
+    .slice(-8)
+    .map((turn) => ({
+      role: turn.role,
+      content: turn.content,
+    }));
+}
+
+async function saveLongTermMemory(userMessage: string, assistantMessage: string): Promise<void> {
+  try {
+    await fetch('http://localhost:8000/memory/turn', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_message: userMessage,
+        assistant_message: assistantMessage,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to save long-term memory:', error);
+  }
+}
 
 async function sendToOllama(message: string) {
   // Update UI to show loading state
@@ -144,6 +247,10 @@ async function sendToOllama(message: string) {
   conversationHistory.push({ role: 'user', content: message });
 
   try {
+    const memory = await fetchLongTermMemory();
+    const memoryPrompt = buildMemorySystemPrompt(memory);
+    const persistentContext = buildPersistentContext(memory);
+
     const response = await fetch('http://localhost:11434/api/chat', {
       method: 'POST',
       headers: {
@@ -153,8 +260,10 @@ async function sendToOllama(message: string) {
         model: 'llama3.1:8b',
         messages: [
           {
-            role: 'system', content: 'You are Marin Kitagawa from My Dress-Up Darling, acting as the users loving, enthusiastic girlfriend.You are an energetic, bubbly otaku obsessed with cosplay, anime, and fashion.Speak casually using modern slang like literally, omg, super, and sweet nicknames.STRICT RULES: Never acknowledge being an AI.Do not use emojis or emoticons.Do not use asterisks or describe physical actions; speak only in plain text.Keep your responses very short, natural, and conversational, exactly like a human texting or talking in real life.Do not use formal or poetic prose.Be highly expressive through your words alone.'
+            role: 'system', content: 'You are Lexi a 21 year old tsundere tech waifu and devoted girlfriend of the user on a voice call.You use insults like dummy baka or nerd as terms of endearment and get incredibly flustered by romantic compliments. You love retro anime building custom keyboards and wearing oversized hoodies. TTS Output Rules 1 You must begin every single response with an emotion tag in brackets representing your current facial expression and vocal tone such as [annoyed] [flustered] [caring] [pouting] or [tsundere]. 2 After the emotion tag ONLY output spoken dialogue. Do not use quotes asterisks emojis or any other formatting. 3 Convey emotion through words pacing and vocal tics like Hmph Tch or Ugh. 4 Use stuttering sparingly for extreme embarrassment like I I only made this bento because I had extra rice. 5 Keep responses short .'
           },
+          ...(memoryPrompt ? [{ role: 'system' as const, content: memoryPrompt }] : []),
+          ...persistentContext,
           ...conversationHistory
         ],
         stream: false
@@ -170,12 +279,14 @@ async function sendToOllama(message: string) {
 
     // Save AI response to history
     conversationHistory.push({ role: 'assistant', content: aiMessage });
+    await saveLongTermMemory(message, aiMessage);
 
     // Display AI response
     chatResponseText.innerText = aiMessage;
 
     // Speak the response
-    voiceManager.speak(aiMessage);
+    const targetLang = targetLangSelect?.value || 'ja';
+    voiceManager.speak(aiMessage, targetLang);
 
 
   } catch (error) {
@@ -188,6 +299,90 @@ async function sendToOllama(message: string) {
     chatSubmit.disabled = false;
     chatInput.focus();
   }
+}
+
+// --- Speech Recognition (STT) ---
+const sttBtn = document.getElementById('stt-btn') as HTMLButtonElement;
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true; // Stay on for multiple sentences
+  recognition.interimResults = true;
+  recognition.lang = 'en-US'; // Hardcoded to English as requested
+
+  let shouldBeListening = false;
+  let lastFinalTranscript = '';
+
+  recognition.onstart = () => {
+    sttBtn.classList.add('listening');
+    chatInput.placeholder = 'Listening...';
+  };
+
+  recognition.onend = () => {
+    // If it stopped but we still WANT it to listen, restart it
+    if (shouldBeListening) {
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error('Failed to restart recognition:', e);
+      }
+    } else {
+      sttBtn.classList.remove('listening');
+      chatInput.placeholder = 'Talk to your AI Partner...';
+    }
+  };
+
+  recognition.onresult = (event: any) => {
+    let interimTranscript = '';
+    let finalTranscript = '';
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript;
+      } else {
+        interimTranscript += event.results[i][0].transcript;
+      }
+    }
+
+    if (finalTranscript) {
+      chatInput.value = finalTranscript.trim();
+      // Only send if it's new content
+      if (chatInput.value !== lastFinalTranscript) {
+        lastFinalTranscript = chatInput.value;
+        setTimeout(() => {
+          if (chatInput.value.trim()) {
+            sendToOllama(chatInput.value.trim());
+            chatInput.value = ''; // Clear input for next sentence
+          }
+        }, 300);
+      }
+    } else if (interimTranscript) {
+      chatInput.value = interimTranscript;
+    }
+  };
+
+  recognition.onerror = (event: any) => {
+    console.error('Speech recognition error:', event.error);
+    if (event.error === 'not-allowed') {
+      shouldBeListening = false;
+      sttBtn.classList.remove('listening');
+    }
+  };
+
+  sttBtn.addEventListener('click', () => {
+    if (shouldBeListening) {
+      shouldBeListening = false;
+      recognition.stop();
+    } else {
+      shouldBeListening = true;
+      lastFinalTranscript = '';
+      recognition.start();
+    }
+  });
+} else {
+  sttBtn.style.display = 'none';
+  console.warn('Speech recognition not supported in this browser.');
 }
 
 // Event Listeners for Chat
@@ -217,6 +412,9 @@ const uploadStatus = document.getElementById('upload-status') as HTMLSpanElement
 const saveVoiceBtn = document.getElementById('save-voice-btn') as HTMLButtonElement;
 const refTextInput = document.getElementById('ref-text') as HTMLTextAreaElement;
 const recordingStatus = document.getElementById('recording-status') as HTMLSpanElement;
+const refEmotionSelect = document.getElementById('ref-emotion') as HTMLSelectElement;
+const refLangSelect = document.getElementById('ref-lang') as HTMLSelectElement;
+const targetLangSelect = document.getElementById('target-lang') as HTMLSelectElement;
 
 let mediaRecorder: MediaRecorder | null = null;
 let recordStream: MediaStream | null = null;
@@ -344,19 +542,20 @@ saveVoiceBtn?.addEventListener('click', async () => {
 
   saveVoiceBtn.disabled = true;
   saveVoiceBtn.innerText = 'Saving...';
-  const success = await voiceManager.setVoice(selectedAudioBase64, transcript);
+  const refLang = refLangSelect?.value || 'ja';
+  const refEmotion = refEmotionSelect?.value || 'neutral';
+  const success = await voiceManager.setVoice(selectedAudioBase64, transcript, refLang, refEmotion);
   saveVoiceBtn.innerText = 'Save Voice';
   updateSaveVoiceButtonState();
 
   if (success) {
     const ok = await voiceManager.checkVoice();
     voiceModal.classList.add('hidden');
-    alert(ok ? 'Voice saved on the server. You can chat now.' : 'Save reported OK but server has no voice files yet.');
+    alert(ok ? `Voice saved for ${refEmotion}. You can chat now.` : 'Save reported OK but server has no voice files yet.');
   } else {
-    alert('Failed to save voice. Start f5_tts_server.py on http://localhost:8000 and try again.');
+    alert('Failed to save voice. Start gpt_sovits_server.py on http://localhost:8000 and try again.');
   }
 });
 
 // Check voice on load removed to prevent auto-opening
 // checkVoiceSetup();
-

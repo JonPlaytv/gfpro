@@ -44,6 +44,43 @@
           <label for="ref-text">Verbatim transcript of the clip above</label>
           <textarea id="ref-text" placeholder="Type exactly what you said in the audio, word for word..."></textarea>
         </div>
+
+        <div class="voice-languages">
+          <div class="form-group half">
+            <label for="ref-emotion">Reference Emotion</label>
+            <select id="ref-emotion">
+              <option value="neutral" selected>Neutral</option>
+              <option value="happy">Happy</option>
+              <option value="sad">Sad</option>
+              <option value="angry">Angry</option>
+              <option value="surprised">Surprised</option>
+              <option value="soft">Soft</option>
+              <option value="excited">Excited</option>
+            </select>
+          </div>
+          <div class="form-group half">
+            <label for="ref-lang">Reference Language</label>
+            <select id="ref-lang">
+              <option value="auto">Auto Detect</option>
+              <option value="zh">Chinese (Mandarin)</option>
+              <option value="en">English</option>
+              <option value="ja" selected>Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="yue">Cantonese</option>
+            </select>
+          </div>
+          <div class="form-group half">
+            <label for="target-lang">Target Language (AI)</label>
+            <select id="target-lang">
+              <option value="zh">Chinese (Mandarin)</option>
+              <option value="en">English</option>
+              <option value="ja" selected>Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="yue">Cantonese</option>
+            </select>
+          </div>
+        </div>
+
         <button id="save-voice-btn" class="btn primary" type="button" disabled>Save Voice</button>
       </div>
     </div>
@@ -55,6 +92,9 @@
           <div class="chat-response-text" id="chat-response-text"></div>
         </div>
         <div class="chat-container">
+          <button class="stt-btn" id="stt-btn" title="Speak">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          </button>
           <input type="text" class="chat-input" id="chat-input" placeholder="Talk to your AI Partner..." autocomplete="off" />
           <button class="chat-submit" id="chat-submit">Send</button>
         </div>

@@ -1,68 +1,89 @@
 import * as THREE from 'three';
 import { VRM } from '@pixiv/three-vrm';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from '@pixiv/three-vrm-animation';
 
 export class AnimationManager {
-  private mixer: THREE.AnimationMixer | null = null;
-  private currentVrm: VRM | null = null;
+    private mixer: THREE.AnimationMixer | null = null;
+    private currentVrm: VRM | null = null;
+    private idleAction: THREE.AnimationAction | null = null;
 
-  constructor() {}
+    constructor() {}
 
-  public setVrm(vrm: VRM) {
-    this.currentVrm = vrm;
+    public setVrm(vrm: VRM, onReady?: () => void) {
+        this.currentVrm = vrm;
+        this.mixer = new THREE.AnimationMixer(vrm.scene);
 
-    this.mixer = new THREE.AnimationMixer(vrm.scene);
-    console.log('AnimationManager: VRM set', vrm);
-    
-    // Set a default pose to break T-pose
-    const leftUpperArm = vrm.humanoid?.getNormalizedBoneNode('leftUpperArm');
-    const rightUpperArm = vrm.humanoid?.getNormalizedBoneNode('rightUpperArm');
-    if (leftUpperArm) leftUpperArm.rotation.z = Math.PI / 4;
-    if (rightUpperArm) rightUpperArm.rotation.z = -Math.PI / 4;
-  }
-
-
-  public update(deltaTime: number) {
-    if (this.mixer) {
-      this.mixer.update(deltaTime);
+        vrm.scene.visible = false;
+        this.loadIdleAnimation('/Idle.vrma', onReady);
     }
 
-    // Procedural Breathing/Idle if no animation is playing
-    if (this.currentVrm && (!this.mixer || !this.mixer.stats.actions)) {
-      this.applyProceduralIdle(performance.now() / 1000);
+    private loadIdleAnimation(url: string, onReady?: () => void) {
+        const loader = new GLTFLoader();
+        loader.register((parser) => new VRMAnimationLoaderPlugin(parser));
+
+        loader.load(
+            url,
+            (gltf) => {
+                const vrmAnimations = (gltf.userData.vrmAnimations as unknown[]) || [];
+                const vrmAnimation = vrmAnimations[0];
+
+                if (vrmAnimation && this.mixer && this.currentVrm) {
+                    const clip = createVRMAnimationClip(vrmAnimation as never, this.currentVrm);
+                    this.idleAction = this.mixer.clipAction(clip);
+                    this.idleAction.reset();
+                    this.idleAction.setLoop(THREE.LoopRepeat, Infinity);
+                    this.idleAction.play();
+                    console.log('AnimationManager: Loaded VRMA clip', clip.name || '(unnamed)', 'Duration:', clip.duration);
+                } else {
+                    console.warn('AnimationManager: No VRM animation found in VRMA');
+                }
+
+                if (this.currentVrm) {
+                    this.currentVrm.scene.visible = true;
+                    console.log('AnimationManager: Live Sync Ready');
+                }
+
+                if (onReady) onReady();
+            },
+            undefined,
+            (error) => {
+                console.error('AnimationManager: Failed to load VRMA animation', error);
+
+                if (this.currentVrm) {
+                    this.currentVrm.scene.visible = true;
+                }
+
+                if (onReady) onReady();
+            }
+        );
     }
-  }
 
-  private applyProceduralIdle(time: number) {
-    if (!this.currentVrm) return;
+    public update(deltaTime: number) {
+        if (this.mixer) {
+            this.mixer.update(deltaTime);
+        }
 
-    // Subtle breathing - chest expansion
-    const chest = this.currentVrm.humanoid?.getNormalizedBoneNode('chest');
-    if (chest) {
-      const breathe = Math.sin(time * 1.5) * 0.02;
-      chest.rotation.x = breathe;
-    } else {
-      if (time < 5) console.warn('AnimationManager: Chest bone not found');
+        if (this.currentVrm) {
+            this.applyProceduralBlink(performance.now() / 1000);
+        }
     }
 
-    // Subtle swaying
-    const spine = this.currentVrm.humanoid?.getNormalizedBoneNode('spine');
-    if (spine) {
-      const sway = Math.sin(time * 0.5) * 0.01;
-      spine.rotation.z = sway;
+    private applyProceduralBlink(time: number) {
+        if (!this.currentVrm) return;
+
+        const blink = Math.max(0, Math.sin(time * 0.3) > 0.98 ? 1 : 0);
+        if (this.currentVrm.expressionManager) {
+            this.currentVrm.expressionManager.setValue('blink', blink);
+        }
     }
 
+    public playAnimation(clip: THREE.AnimationClip) {
+        if (!this.mixer) return;
 
-    // Blink logic
-    const blink = Math.max(0, Math.sin(time * 0.3) > 0.98 ? 1 : 0);
-    if (this.currentVrm.expressionManager) {
-      this.currentVrm.expressionManager.setValue('blink', blink);
+        this.mixer.stopAllAction();
+        const action = this.mixer.clipAction(clip);
+        action.reset();
+        action.play();
     }
-  }
-
-  public playAnimation(clip: THREE.AnimationClip) {
-    if (!this.mixer) return;
-    this.mixer.stopAllAction();
-    const action = this.mixer.clipAction(clip);
-    action.play();
-  }
 }
