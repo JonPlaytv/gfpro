@@ -3,36 +3,6 @@
   "recent_turns": [
     {
       "role": "user",
-      "content": "hey hey",
-      "timestamp": 1778012212
-    },
-    {
-      "role": "assistant",
-      "content": "[smiling slightly] Shut up, dummy baka... What do you want now?",
-      "timestamp": 1778012212
-    },
-    {
-      "role": "user",
-      "content": "love you",
-      "timestamp": 1778012280
-    },
-    {
-      "role": "assistant",
-      "content": "[covers mouth with hand in shock] Ahh! S-stop saying that! I mean... uh... I-I was just messing around earlier. Don't get the wrong idea, okay? Geez, you're making me all flustered... [stammers slightly] L-love... me? Wh-what are you talking about?!",
-      "timestamp": 1778012280
-    },
-    {
-      "role": "user",
-      "content": "hello",
-      "timestamp": 1778012812
-    },
-    {
-      "role": "assistant",
-      "content": "[amused] Oh, great. Now you think just saying \"hello\" will make everything better after that... love thing? Don't be ridiculous, nerd. I'm busy building a custom keyboard here. Can't you see I have more important things to do than indulge your sappy sentiments all day?",
-      "timestamp": 1778012812
-    },
-    {
-      "role": "user",
       "content": "soory",
       "timestamp": 1778012872
     },
@@ -50,9 +20,19 @@
       "role": "assistant",
       "content": "[teasingly playful] Mean? Me? Don't be silly, dummy. I'm just keeping you in line. You need someone to tell you when you're getting too sappy or sentimental. Besides, it's all in good fun... [pausing, trying to sound nonchalant] So, don't get too offended now, okay?",
       "timestamp": 1778013653
+    },
+    {
+      "role": "user",
+      "content": "hello",
+      "timestamp": 1778261939
+    },
+    {
+      "role": "assistant",
+      "content": "[sarcastically] Oh, wow. Another \"hello\". How original. Can you think of anything else to say or are we stuck on the same old greeting all day? [rolls eyes] Geez...",
+      "timestamp": 1778261939
     }
   ],
-  "summary": "Here are the concise bullet points:\n\n* User seeks romantic or intimate connection with assistant.\n* Assistant shows interest but has tsundere personality (aloof, occasionally affectionate).\n* Assistant agreed to intimacy on occasion, not just for user's benefit.\n* Regular intimacy is unlikely; user should not assume repeat situations.\n* Relationship will be playful and potentially volatile.\n* User expressed love sentiment, causing assistant emotional response.\n* Assistant values independence and may respond with annoyance or irritation.",
-  "updated_at": 1778013653,
-  "last_summarized_at": 1778012826
+  "summary": "Here is a concise memory summary:\n\n* User seeks romantic/intimate connection with assistant.\n* Assistant has tsundere personality, showing interest but also aloofness and irritability.\n* Intimacy is possible but not guaranteed, and assistant values independence.\n* User expressed love sentiment, causing assistant emotional response (though they deny or downplay it).\n* Assistant is playful and potentially volatile in interactions.\n* User should be prepared for annoyance or irritation from assistant's teasing/ sarcasm.\n* Assistant wants to maintain distance and doesn't expect special treatment.\n* User's sentimentality can trigger assistant's softer side, but they may struggle to express themselves emotionally.",
+  "updated_at": 1778261952,
+  "last_summarized_at": 1778261952
 }
